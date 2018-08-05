@@ -1,223 +1,87 @@
+```c++
 #pragma once
- 
-#include<fstream>
-#include<string>
-#include<assert.h>
-#include"HuffmanTree.h"
+#include<queue>
 
-typedef long long LongType;
-
-struct CharInfo
+template<class W>
+struct HaffmanTreeNode
 {
-	char _ch;			//�ַ�
-	LongType _count;	//����
-	string _code;		//����
+	HaffmanTreeNode<W>* _left;
+	HaffmanTreeNode<W>* _right;
+	HaffmanTreeNode<W>* _parent;
+	W _w;
 
-	CharInfo operator+(const CharInfo& info)
-	{
-		CharInfo ret;
-		ret._count = _count + info._count;
-		return ret;
-	}
-	bool operator > (const CharInfo& info)const
-	{
-		return _count > info._count;
-	}
-	bool operator!=(const CharInfo& info)
-	{
-		return _count != info._count;
-	}
+	HaffmanTreeNode(const W& w)
+		:_w(w)
+		, _left(NULL)
+		, _right(NULL)
+		, _parent(NULL)
+	{}
 };
 
-class FileCompress
+template<class W>
+class HaffmanTree
 {
-	typedef HaffmanTreeNode<CharInfo> Node;
+	typedef HaffmanTreeNode<W> Node;
 public:
-	struct ConfigInfo
+	HaffmanTree()
+		:root(NULL)
+	{}
+	
+	struct NodeCompare
 	{
-		char _ch;
-		LongType _count;
+		bool operator()(const Node* l, const Node* r)
+		{
+			return l->_w > r->_w;
+		} 
 	};
-	FileCompress()
+	HaffmanTree(W* w, size_t n,const W& invalid)
 	{
-		for (size_t i = 0; i < 256; i++)
+		//构建Huffman tree
+		//优先级队列，默认为大堆
+		priority_queue < Node*, vector<Node*>, NodeCompare> minheap;
+		for (size_t i = 0; i < n; ++i)
 		{
-			_hashInfos[i]._ch = i;
-			_hashInfos[i]._count = 0;
+			if (w[i] != invalid)
+				minheap.push(new Node(w[i]));
 		}
+		while (minheap.size() > 1)
+		{
+			Node* left = minheap.top();
+			minheap.pop();
+			Node* right = minheap.top();
+			minheap.pop();
+			Node* parent = new Node(left->_w + right->_w);
+			parent->_left = left;
+			parent->_right = right;
+
+			left->_parent = parent;
+			right->_parent = parent;
+
+			minheap.push(parent);
+		}
+		_root = minheap.top();
 	}
-	void Compress(const char* file)
+	~HaffmanTree()
 	{
-		//1��ͳ���ļ����ַ����ֵĴ���
-		ifstream ifs(file, ios_base::in | ios_base::binary);
-		char ch;
-		//while (ifs >> ch)
-		while (ifs.get(ch))
-		{
-			_hashInfos[(unsigned char)ch]._count++;
-		}
-		//2������Huffman Tree
-		CharInfo invalid;
-		invalid._count = 0;
-		HaffmanTree<CharInfo> tree(_hashInfos, 256, invalid);
-
-		//3������haffman code
-		GenerateHaffmanCode(tree.GetRoot());
-
-		//4��ѹ��
-		string compressfile = file;
-		compressfile += ".haffman";
-		ofstream ofs(compressfile.c_str(), ios_base::out | ios_base::binary);
-
-		//5��д���ַ����������ڽ�ѹ��ʱ�ؽ�haffman tree
-		//�����ƶ�д
-		for (size_t i = 0; i < 256; i++)
-		{
-			if (_hashInfos[i]._count>0)
-			{			
-				ConfigInfo info;
-				info._ch = _hashInfos[i]._ch;
-				info._count = _hashInfos[i]._count;
-				ofs.write((char*)&info, sizeof(ConfigInfo));
-			}
-		}
-		//CharInfo end;
-		ConfigInfo end;
-		end._count = 0;
-		ofs.write((char*)&end, sizeof(ConfigInfo));
-
-		char value = 0;
-		int pos = 0;
-		ifs.clear();
-		ifs.seekg(0);
-		while (ifs.get(ch))
-		{
-			string& code = _hashInfos[(unsigned char)ch]._code;
-			for (size_t i = 0; i < code.size(); i++)
-			{
-				if (code[i] == '0')
-					value &= (~(1 << pos));
-				else if (code[i] == '1')
-					value |= (1 << pos);
-				else
-					assert(false);
-				++pos;
-				if (pos == 8)
-				{
-					ofs.put(value);
-					pos = 0;
-					value = 0;
-				}
-			}
-		}
-		if (pos > 0)
-		{
-			ofs.put(value);
-			printf("%x ", value);
-		}
+		Destory(_root);
+		_root = NULL;
 	}
-
-	void GenerateHaffmanCode(Node* root)
+	void Destory(Node* root)
 	{
-		if (root == NULL)
+		if (root)
 			return;
-		if (root->_left == NULL && root->_right == NULL)
-		{
-			string& code = _hashInfos[(unsigned char)root->_w._ch]._code;
-			Node* cur = root;
-			Node* parent = cur->_parent;
-			while (parent)
-			{
-				if (cur == parent->_left)
-					code += '0';
-				else
-					code += '1';
-				cur = parent;
-				parent = parent->_parent;
-			}
-			reverse(code.begin(), code.end());
-		}
-		GenerateHaffmanCode(root->_left);
-		GenerateHaffmanCode(root->_right);
+		Destory(root->_left);
+		Destory(root->_right);
+		delete root;
 	}
-	//void GenerateHaffmanCode(Node* root)
-	//{
-	//	if (root == NULL)
-	//		return;
-	//	if (root->_left)
-	//	{
-	//		root->_left->_w._code = root->_w._code + '0';
-	//		GenerateHaffmanCode(root->_left);
-	//	}
-	//	if (root->_right)
-	//	{
-	//		root->_right->_w._code = root->_w._code + '1';
-	//		GenerateHaffmanCode(root->_right);
-	//	}
-	//}
-	void Uncompress(const char* file)
+	Node* GetRoot()
 	{
-		//1����ѹ���ļ����н�ѹ��
-		ifstream ifs(file, ios_base::in | ios_base::binary);
-
-		string uncompressfile = file;
-		size_t pos = uncompressfile.rfind('.'); //�Ӻ���ǰ�ҵ�һ�� .
-		assert(pos != string::npos);
-		uncompressfile.erase(pos); //ɾ����׺
-
-#ifdef _DEBUG
-		uncompressfile += ".unhaffman";
-#endif
-
-		ofstream ofs(uncompressfile.c_str(), ios_base::out | ios_base::binary);
-		//�ؽ�haffman��
-		while (1)
-		{
-			ConfigInfo info;
-			ifs.read((char*)&info, sizeof(ConfigInfo));
-			if (info._count > 0)
-				_hashInfos[(unsigned char)info._ch]._count = info._count;
-			else
-				break;
-		}
-
-		CharInfo invalid;
-		invalid._count = 0;
-		HaffmanTree<CharInfo> tree(_hashInfos, 256, invalid);
-
-		//��ѹ��
-		Node* root = tree.GetRoot();
-		LongType filecount = root->_w._count;
-		Node* cur = root;
-		char ch;
-		while (ifs.get(ch))
-		{
-			for (size_t pos = 0; pos < 8; ++pos)
-			{
-				if (ch & (1 << pos)) //1
-					cur = cur->_right;
-				else // 0
-					cur = cur->_left;
-
-				if (cur->_left == NULL && cur->_right == NULL) //��Ҷ����
-				{
-					ofs.put(cur->_w._ch);
-					cur = root;
-					if (--filecount == 0)
-						break;
-				}
-			}
-		}
+		return _root;
 	}
 private:
-	CharInfo _hashInfos[256];
-};
-
-void TestFileCompress()
-{
-	FileCompress fc;
-	fc.Compress("input.txt");
-	fc.Uncompress("input.txt.haffman");
-}
-
-//80000
+	HaffmanTree(const HaffmanTree<W>& t);
+	HaffmanTree<W>& operator = (const HaffmanTree<W>& t);
+protected:
+	Node* _root;
+};	
+```	
