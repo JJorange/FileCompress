@@ -1,2 +1,2 @@
 # FileCompress
-文件压缩小工具
+hufuman文件压缩
